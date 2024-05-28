@@ -649,10 +649,9 @@ ENTRY(sys_call_table)
 	.long SYMBOL_NAME(sys_ni_syscall)	/* 240 reserved for futex */
 	.long SYMBOL_NAME(sys_sched_setaffinity)
 	.long SYMBOL_NAME(sys_sched_getaffinity)
-	.long SYMBOL_NAME(band_create)
-	.long SYMBOL_NAME(band_join)
-	.long SYMBOL_NAME(band_play)
-	.long SYMBOL_NAME(band_listen)
+	.long SYMBOL_NAME(mpi_register)		/* 243 */
+	.long SYMBOL_NAME(mpi_send)			/* 244 */
+	.long SYMBOL_NAME(mpi_receive)		/* 245 */
 	
 	.rept NR_syscalls-(.-sys_call_table)/4
 		.long SYMBOL_NAME(sys_ni_syscall)

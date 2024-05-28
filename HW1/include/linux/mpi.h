@@ -12,22 +12,23 @@
 
 #define SUCCESS 0
 #define FAIL -1
+#define DEBUG // flag for debug prints
 
-struct mpi_process_s{
+struct task_struct{
     bool registered;
     struct list_head *msg_queue;
 };
 
-struct mpi_message_s{
+typedef struct{
     char *message;
     ssize_t message_size;
-    pid_t sender_id;
+    pid_t sender_pid;
     struct list_head head;
-};
+} MPI_MESSAGE_S;
 
 int mpi_register(void);
 int mpi_send(pid_t pid, char *message, ssize_t message_size);
 int mpi_receive(pid_t pid, char* message, ssize_t message_size);
-void terminate_process(pid_t curr_process);
+void free_process(void);
 
 #endif // _MPI_H
