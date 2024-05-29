@@ -794,7 +794,7 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 #ifdef DEBUG
     	printk("in MPI fork mechanizem\n");
 #endif // DEBUG 		
-        current->registered = true;
+        current->registered = 1;
         INIT_LIST_HEAD(&current->msg_queue);
     }
 

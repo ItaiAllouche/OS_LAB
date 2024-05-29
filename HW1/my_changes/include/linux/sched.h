@@ -30,7 +30,7 @@ extern unsigned long event;
 
 // itai changes
 #include <linux/list.h>
-#include <stdbool.h>
+// #include <stdbool.h>
 
 struct exec_domain;
 
@@ -457,8 +457,8 @@ struct task_struct {
 	void *journal_info;
 
 	// itai changes
-	bool registered;
-	struct list_head msg_queue;
+	int registered; // if process is registered to MPI
+	struct list_head msg_queue; // proccess's message queue 
 };
 
 /*

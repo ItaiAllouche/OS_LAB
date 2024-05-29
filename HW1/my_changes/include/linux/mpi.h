@@ -18,10 +18,10 @@
 //     struct list_head *msg_queue;
 // }
 typedef struct{
-    char *message;
     ssize_t message_size;
     pid_t sender_pid;
     struct list_head head;
+    char *message;    
 } MPI_MESSAGE_S;
 
 int mpi_register(void);

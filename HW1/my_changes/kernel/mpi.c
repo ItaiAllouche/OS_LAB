@@ -23,7 +23,7 @@ int mpi_register(void){
 //         return -ENOMEM;
 //     }
 
-    current_process->registered = true;
+    current_process->registered = 1;
     INIT_LIST_HEAD(&current_process->msg_queue);
 
 #ifdef DEBUG
@@ -39,16 +39,19 @@ int mpi_send(pid_t pid, char *message, ssize_t message_size){
 #endif // DEBUG
 
     // Message validation
-    if(message == NULL || message_size < 1){
+    if(!message || message_size < 1){
 #ifdef DEBUG
         printk("invalid input. message size = %d\n", message_size);
 #endif // DEBUG        
         return -EINVAL;
     }
+#ifdef DEBUG
+    printk("message is valid\n");
+#endif // DEBUG       
 
     struct task_struct *sender_process = current;
     struct task_struct *recev_process;
-    MPI_MESSAGE_S *mpi_message;
+    MPI_MESSAGE_S *mpi_message = NULL;
 
     // Check if sending process is valid and registered
     if(!sender_process || !sender_process->registered){
@@ -57,6 +60,9 @@ int mpi_send(pid_t pid, char *message, ssize_t message_size){
 #endif // DEBUG        
         return -EPERM;
     }
+#ifdef DEBUG
+    printk("sendig process is valid\n");
+#endif // DEBUG       
 
     // Check if receiver process is exist
     recev_process = find_task_by_pid(pid);
@@ -66,25 +72,42 @@ int mpi_send(pid_t pid, char *message, ssize_t message_size){
 #endif // DEBUG        
         return -ESRCH;
     }
+#ifdef DEBUG
+    printk("receiver process exists pid =%d\n", pid);
+#endif // DEBUG   
 
-    // Memory message allocation
+    // mpi_message allocation
     mpi_message = (MPI_MESSAGE_S*)kmalloc(sizeof(MPI_MESSAGE_S), GFP_KERNEL);
     if(!mpi_message){
 #ifdef DEBUG
-        printk("failed on kamlloc()\n");
+        printk("failed on kamlloc() mpi_message allocation\n");
 #endif // DEBUG        
         return -ENOMEM;
     }
+    // message allocation
+    mpi_message->message = (char*)kmalloc(message_size, GFP_KERNEL);
+    if(!mpi_message->message){
+#ifdef DEBUG
+        printk("failed on kamlloc() message allocation\n");
+#endif // DEBUG        
+        return -ENOMEM;
+    }    
+
+#ifdef DEBUG
+    printk("memory allocation went succesfully\n");
+#endif // DEBUG       
 
     // Copy message from user space to kernel space (in mpi_message)
-    unsigned long res = copy_from_user(mpi_message->message, message, message_size);
-    if(res != SUCCESS){
+    if(copy_from_user(mpi_message->message, (const char *)message, (unsigned long)message_size)!= SUCCESS){
 #ifdef DEBUG
         printk("failed on copy_from_user()\n");
 #endif // DEBUG                
         kfree(mpi_message);
         return -EFAULT;
     }
+#ifdef DEBUG
+        printk("copy_from_user() succesed\n");
+#endif // DEBUG      
 
     // Add message to receiver process's queue
     mpi_message->message_size = message_size;
@@ -110,11 +133,14 @@ int mpi_receive(pid_t pid, char* message, ssize_t message_size){
 #endif // DEBUG           
         return -EINVAL;
     }
+#ifdef DEBUG
+    printk("message is valid\n");
+#endif // DEBUG    
 
     struct task_struct *recev_process = current;
     MPI_MESSAGE_S *recev_message;
     struct list_head *list_pos;
-    bool found = false;
+    int found = 0;
 
     // Check if receiver process is valid and registered
     if(!recev_process || !recev_process->registered){
@@ -123,12 +149,15 @@ int mpi_receive(pid_t pid, char* message, ssize_t message_size){
 #endif // DEBUG                
         return -EPERM;
     }
+#ifdef DEBUG
+    printk("receiver procces is valid\n");
+#endif // DEBUG    
 
     // Find message from process pid
-    list_for_each_prev(list_pos, &recev_process->msg_queue){
-        recev_message = list_entry(list_pos);
+    list_for_each(list_pos, &recev_process->msg_queue){
+        recev_message = list_entry(list_pos, MPI_MESSAGE_S, head);
         if(recev_message->sender_pid == pid){
-            found = true;
+            found = 1;
             break;
         }
     }
@@ -140,6 +169,9 @@ int mpi_receive(pid_t pid, char* message, ssize_t message_size){
 #endif // DEBUG                
         return -EAGAIN;
     }
+#ifdef DEBUG
+    printk("essage was found. pid = %d\n",pid);
+#endif // DEBUG    
 
     // Copy message to user space (in message buffer)
     ssize_t copy_size = (message_size > recev_message->message_size) ? recev_message->message_size : message_size;
@@ -149,6 +181,10 @@ int mpi_receive(pid_t pid, char* message, ssize_t message_size){
 #endif // DEBUG                  
         return -EFAULT;
     }
+#ifdef DEBUG
+        printk("copy_to_user() successed\n");
+#endif // DEBUG       
+    
 
     // Remove message from process's queue
     list_del(list_pos);
@@ -166,18 +202,21 @@ void free_process(struct task_struct* current_process){
 #ifdef DEBUG
     printk("free_process function in\n");
 #endif // DEBUG    
-    MPI_MESSAGE_S *curr_message, *temp;
+    struct list_head *pos, *q;
+    MPI_MESSAGE_S* curr_message;
 
     if (!current_process){
         return;
     }
 
     // free memory allocated message queue
-    list_for_each_entry_safe(curr_message, temp, &current_process->mpi_message_queue, list){
+    list_for_each_safe(pos, q, &current_process->msg_queue){
+        curr_message = list_entry(pos, MPI_MESSAGE_S, head);
+        list_del(pos);
         kfree(curr_message->message);
         kfree(curr_message);
     }
-    INIT_LIST_HEAD(&current_process->msg_queue);
+    // INIT_LIST_HEAD(&current_process->msg_queue);
 
 #ifdef DEBUG
     printk("free_process function out\n");

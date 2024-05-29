@@ -12,6 +12,7 @@ int main()
     pid_t pid = getpid();
     char message[100];
 
+	printf("in mai\n");
 	// Register for MPI
 	res = mpi_register();
 	assert(res == 0);
