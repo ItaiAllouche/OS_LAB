@@ -13,6 +13,7 @@
 #include <linux/personality.h>
 #include <linux/tty.h>
 #include <linux/namespace.h>
+#include <linux/band.h>
 #ifdef CONFIG_BSD_PROCESS_ACCT
 #include <linux/acct.h>
 #endif
@@ -20,8 +21,6 @@
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
 #include <asm/mmu_context.h>
-//itai change
-#include <linux/mpi.h>
 
 extern void sem_exit (void);
 extern struct task_struct *child_reaper;
@@ -498,9 +497,8 @@ NORET_TYPE void do_exit(long code)
 		panic("Attempted to kill init!");
 	tsk->flags |= PF_EXITING;
 	del_timer_sync(&tsk->real_timer);
-	if (!tsk){
-		// itai change
-		free_process(tsk);
+		if (!tsk) {
+		delete_process_done(tsk->pid);
 	}
 	
 

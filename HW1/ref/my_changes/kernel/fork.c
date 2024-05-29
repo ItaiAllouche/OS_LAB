@@ -29,9 +29,6 @@
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
 
-// itai change
-#include <linux/mpi.h>
-
 /* The idle threads do not count.. */
 int nr_threads;
 
@@ -787,16 +784,6 @@ int do_fork(unsigned long clone_flags, unsigned long stack_start,
 		 * COW overhead when the child exec()s afterwards.
 		 */
 		current->need_resched = 1;
-
-	// itai change
-	// Inherit MPI registration and initialize an empty message queue for child process
-    if(p->registered){
-#ifdef DEBUG
-    	printk("in MPI fork mechanizem\n");
-#endif // DEBUG 		
-        current->registered = true;
-        INIT_LIST_HEAD(&current->msg_queue);
-    }
 
 fork_out:
 	return retval;
