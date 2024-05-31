@@ -32,9 +32,9 @@ char char_encryption(char elem, int key);
 
 char char_decryption(char elem, int key);
 
-char* message_encryption(char* message, size_t count);
+void message_encryption(char* message_to_encrypt, char* kernel_buffer, size_t count);
 
-char* message_decryption(char* message, size_t count);
+void message_decryption(char* message_to_decrypt, char* kernel_buffer, size_t count);
 
 // Custom implementation of memcpy
 void *my_memcpy(void *dest, const void *src, size_t n);
@@ -45,14 +45,7 @@ typedef struct{
     size_t buff_size;
     int* key;
     size_t key_size;
-    char aplha_bet [62] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
-                           'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
-                           'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
-                           'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
-                           'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
-                           'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
-                           'w', 'x', 'y', 'z', '0', '1', '2', '3',
-                           '4', '5', '6', '7', '8', '9'};
+    char aplha_bet [62];
 }MESSAGE_BUFFER_S;
 
 

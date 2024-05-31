@@ -31,7 +31,7 @@ void *my_memcpy(char *dest, const char *src, size_t n) {
     while (n--){
         *d++ = *s++;
     }
-    return d;
+    return dest;
 }
 
 char char_encryption(char elem, int key){
@@ -56,19 +56,19 @@ char char_decryption(char elem, int key){
     return elem;   
 }
 
-char* message_encryption(char* message, size_t count){
+// TODO: alligan encrypt-decrypt to start of message_buffer
+void message_encryption(char* message_to_encrypt, size_t count){
     for(size_t i=0; i<count; i++){
-        message[i] = char_encryption(message[i], g_message_buffer->key[i % key_size]);
+        message_to_encrypt[i] = char_encryption(message_to_encrypt[i], g_message_buffer->key[i % key_size]);
     }
-    return message
+    return;
 }
 
-char* message_decryption(char* message, size_t count){
+void message_decryption(char* message_to_decrypt, char* kernel_buffer, size_t count){
     for(size_t i=0; i<count; i++){
-        message[i] = char_decryption(message[i], g_message_buffer->key[i % key_size]);
+        kernel_buffer[i] = char_decryption(message_to_decrypt[i], g_message_buffer->key[i % key_size]);
     }
-    return message    
-
+    return;  
 }
 
 struct file_operations my_fops = {
@@ -88,9 +88,28 @@ int init_module(void){
         return my_major;
     }
 
-    //
-    // do_init();
-    //
+    g_message_buffer = kmalloc(sizeof(MESSAGE_BUFFER_S), GFP_KERNEL);
+    if(!g_message_buffer){
+        unregister_chrdev(my_major, MY_DEVICE);
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] kmalloc() faild\n");
+#endif // DEBUG_MODE      
+        return -ENOMEM;
+    }
+
+    g_message_buffer->buf = NULL;
+    g_message_buffer->buf_pos = 0;
+    g_message_buffer->buff_size = 0;
+    g_message_buffer->key = NULL;
+    g_message_buffer->aplha_bet = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+                                   'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+                                   'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+                                   'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+                                   'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+                                   'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+                                   'w', 'x', 'y', 'z', '0', '1', '2', '3',
+                                   '4', '5', '6', '7', '8', '9'};
+
     return 0;
 }
 
@@ -99,9 +118,16 @@ void cleanup_module(void){
 
     unregister_chrdev(my_major, MY_DEVICE);
 
-    //
-    // do clean_up();
-    //
+    // Free message buffer
+    if(g_message_buffer->buff){
+        kfree(g_message_buffer->buff);
+    }
+
+    // Free key 
+    if(g_message_buffer->key){
+        kfree(g_message_buffer->key);        
+    }
+    g_message_buffer = NULL;
     return;
 }
 
@@ -118,10 +144,66 @@ int my_release(struct inode *inode, struct file *filp){
 }
 
 ssize_t my_read(struct file *filp, char *buf, size_t count, loff_t *f_pos){
-    //
-    // Do read operation.
-    // Return number of bytes read.
-    return 0; 
+#ifdef DEBUG_MODE
+    printk("[DEBUG_MODE] my_read() in\n");
+#endif // DEBUG_MODE
+    if(!buff){
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] buf arg invalid\n");
+#endif // DEBUG_MODE
+        return -EFAULT;
+    }
+    if(*f_pos > g_message_buffer->buff_size){
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] no data to read\n");
+#endif // DEBUG_MODE
+        return 0;
+    }
+    if(!g_message_buffer->key){
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] invalid key\n");
+#endif // DEBUG_MODE  
+        return -EINVAL;      
+    }
+    if(count <= 0 || *f_pos < 0 ){
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] invalid count or f_pos\n");
+#endif // DEBUG_MODE  
+        return -EFAULT;          
+    }
+
+    // Determine the number of bytes to read
+    if(*f_pos + count > g_message_buffer->buff_size){
+        count = g_message_buffer->buff_size - *f_pos;
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] can't read %d bytes. %d bytes will be read \n",dummy, count);
+#endif // DEBUG_MODE          
+    }
+
+    // Allocate kernel buffer for data to decrypt
+    char* kernel_buffer = (char*)kmalloc(count, GFP_KERNEL);
+    if(!kernel_buffer){
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] kmalloc() faild\n");
+#endif // DEBUG_MODE      
+        return -ENOMEM;
+    }
+
+    message_decryption(g_message_buffer->buff+f_pos, kernel_buffer, count);
+    // Copy data to user space
+    if(copy_to_user(buf, kernel_buffer, count) != 0){
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] failed on copy_to_user()\n");
+#endif // DEBUG  
+        return -EBADF;
+    }
+    kfree(kern);
+
+    // Update file position
+    *f_pos += count;
+    
+    return count;
+
 }
 
 ssize_t my_write(struct file *filp, const char *buf, size_t count){
@@ -150,17 +232,30 @@ ssize_t my_write(struct file *filp, const char *buf, size_t count){
         return -ENOMEM;
     }
 
-    char* dummy = my_memcpy(new_buff, g_message_buffer->buff, g_message_buffer->buff_size);
-    kfree(g_message_buffer->buff);
-    g_message_buffer->buff = dummy;
-    if(copy_from_user(g_message_buffer->buff+g_message_buffer->buff_size, message_encryption(buf, count), count)!= 0){
+     // Allocate kernel buffer for data to encrypt
+    char* kernel_buffer = (char*)kmalloc(count, GFP_KERNEL);
+    if(!kernel_buffer){
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] kmalloc() faild\n");
+        kfree(new_buff);
+#endif // DEBUG_MODE      
+        return -ENOMEM;
+    }
+
+    if(copy_from_user(kernel_buffer, buf, count)!= 0){
 #ifdef DEBUG_MODE
         printk("[DEBUG_MODE] failed on copy_from_user()\n");
 #endif // DEBUG                
         kfree(g_message_buffer->buff);
         return -EBADF;        
     }
-    g_message_buffer->buff_size += count;
+
+    message_encryption(kernel_buffer, count);
+    my_memcpy(new_buff, g_message_buffer->buff, g_message_buffer->buff_size);
+    my_memcpy(new_buff + g_message_buffer->buff_size, kernel_buffer, count);
+    kfree(kernel_buffer);
+    kfree(g_message_buffer->buff);
+    g_message_buffer->buff = new_buff;
 
 #ifdef DEBUG_MODE
         printk("[DEBUG_MODE] my_write() out\n");
