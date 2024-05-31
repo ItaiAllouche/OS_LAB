@@ -23,7 +23,14 @@ MODULE_LICENSE("GPL");
 
 /* globals */
 int my_major = 0; /* will hold the major # of my device driver */
-MESSAGE_BUFFER_S* g_message_buffer;
+const char aplha_bet [ALPHA_BET_SIZE]= {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+                                   'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+                                   'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+                                   'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+                                   'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+                                   'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+                                   'w', 'x', 'y', 'z', '0', '1', '2', '3',
+                                   '4', '5', '6', '7', '8', '9'};
 
 void *my_memcpy(char *dest, const char *src, size_t n) {
     char *d = dest;
@@ -56,7 +63,6 @@ char char_decryption(char elem, int key){
     return elem;   
 }
 
-// TODO: alligan encrypt-decrypt to start of message_buffer
 void message_encryption(char* message_to_encrypt, size_t count){
     for(size_t i=0; i<count; i++){
         message_to_encrypt[i] = char_encryption(message_to_encrypt[i], g_message_buffer->key[i % key_size]);
@@ -90,30 +96,6 @@ int init_module(void){
         printk(KERN_WARNING "can't get dynamic major\n");
         return my_major;
     }
-
-    g_message_buffer = kmalloc(sizeof(MESSAGE_BUFFER_S), GFP_KERNEL);
-    if(!g_message_buffer){
-        unregister_chrdev(my_major, MY_DEVICE);
-#ifdef DEBUG_MODE
-        printk("[DEBUG_MODE] kmalloc() faild\n");
-#endif // DEBUG_MODE      
-        return -ENOMEM;
-    }
-
-    g_message_buffer->buf = NULL;
-    g_message_buffer->buf_pos = 0;
-    g_message_buffer->buff_size = 0;
-    g_message_buffer->key = NULL;
-    g_message_buffer->key = key_size = 0;
-    g_message_buffer->aplha_bet = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
-                                   'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
-                                   'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
-                                   'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
-                                   'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
-                                   'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
-                                   'w', 'x', 'y', 'z', '0', '1', '2', '3',
-                                   '4', '5', '6', '7', '8', '9'};
-
     return 0;
 }
 
@@ -121,29 +103,60 @@ void cleanup_module(void){
     // This function is called when removing the module using rmmod
 
     unregister_chrdev(my_major, MY_DEVICE);
-
-    // Free message buffer
-    if(g_message_buffer->buff){
-        kfree(g_message_buffer->buff);
-    }
-
-    // Free key 
-    if(g_message_buffer->key){
-        kfree(g_message_buffer->key);        
-    }
-    g_message_buffer = NULL;
     return;
 }
 
 int my_open(struct inode *inode, struct file *filp){
-    // handle open
+#ifdef DEBUG_MODE
+    printk("[DEBUG_MODE] my_open() in\n");
+#endif // DEBUG_MODE
+    MESSAGE_BUFFER_S* message_buffer = (MESSAGE_BUFFER_S*)kmalloc(sizeof(MESSAGE_BUFFER_S*),GFP_KERNEL);
+    if(!message_buffer){
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] kmalloc() faild\n");
+#endif // DEBUG_MODE
+        return -ENOMEM;        
+    }
 
+    message_buffer->buff = kmalloc(0, GFP_KERNEL);
+    if(!message_buffer->buff){
+        kfree(message_buffer);
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] kmalloc() faild\n");
+#endif // DEBUG_MODE      
+        return -ENOMEM;
+    }
+
+    message_buffer->buff_size = 0;
+    message_buffer->key = NULL;
+    message_buffer->key_size = 0;
+
+    flip->private_data = message_buffer;
+
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] my_open out\n");
+#endif // DEBUG_MODE
     return 0;
 }
 
 int my_release(struct inode *inode, struct file *filp){
-    // handle file closing
+#ifdef DEBUG_MODE
+    printk("[DEBUG_MODE] my_close() in\n");
+#endif // DEBUG_MODE
+    MESSAGE_BUFFER_S* message_buffer = (MESSAGE_BUFFER_S*)flip->private_data;
 
+    if(message_buffer){
+        if(message_buffer->key){
+            kfree(message_buffer->key);
+        }
+        if(message_buffer->buff){
+            kfree(message_buffer->buff);
+        }
+        kfree(message_buffer);
+    }
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] my_release out\n");
+#endif // DEBUG_MODE
     return 0;
 }
 
@@ -151,25 +164,26 @@ ssize_t my_read(struct file *filp, char *buf, size_t count, loff_t *f_pos){
 #ifdef DEBUG_MODE
     printk("[DEBUG_MODE] my_read() in\n");
 #endif // DEBUG_MODE
-    if(!buff){
+    MESSAGE_BUFFER_S* message_buffer = (MESSAGE_BUFFER_S*)filp->private_data;
+    if(!buff || !message_buffer){
 #ifdef DEBUG_MODE
         printk("[DEBUG_MODE] buf arg invalid\n");
 #endif // DEBUG_MODE
         return -EFAULT;
     }
-    if(*f_pos > g_message_buffer->buff_size){
+    if(*f_pos > message_buffer->buff_size){
 #ifdef DEBUG_MODE
         printk("[DEBUG_MODE] no data to read\n");
 #endif // DEBUG_MODE
         return 0;
     }
-    if(!g_message_buffer->key){
+    if(!message_buffer->key){
 #ifdef DEBUG_MODE
         printk("[DEBUG_MODE] invalid key\n");
 #endif // DEBUG_MODE  
         return -EINVAL;      
     }
-    if(count <= 0 || *f_pos < 0 ){
+    if(count <= 0 || *f_pos < 0){
 #ifdef DEBUG_MODE
         printk("[DEBUG_MODE] invalid count or f_pos\n");
 #endif // DEBUG_MODE  
@@ -177,8 +191,8 @@ ssize_t my_read(struct file *filp, char *buf, size_t count, loff_t *f_pos){
     }
 
     // Determine the number of bytes to read
-    if(*f_pos + count > g_message_buffer->buff_size){
-        count = g_message_buffer->buff_size - *f_pos;
+    if(*f_pos + count > message_buffer->buff_size){
+        count = message_buffer->buff_size - *f_pos;
 #ifdef DEBUG_MODE
         printk("[DEBUG_MODE] can't read %d bytes. %d bytes will be read \n",dummy, count);
 #endif // DEBUG_MODE          
@@ -214,13 +228,14 @@ ssize_t my_write(struct file *filp, const char *buf, size_t count){
 #ifdef DEBUG_MODE
     printk("[DEBUG_MODE] my_write() in\n");
 #endif // DEBUG_MODE
-    if(!buff){
+    MESSAGE_BUFFER_S* message_buffer = (MESSAGE_BUFFER_S*)filp->private_data;
+    if(!buff || !message_buffer){
 #ifdef DEBUG_MODE
         printk("[DEBUG_MODE] buf arg invalid\n");
 #endif // DEBUG_MODE
         return -EFAULT;
     }
-    if(!g_message_buffer->key){
+    if(!message_buffer->key){
 #ifdef DEBUG_MODE
         printk("[DEBUG_MODE] invalid key\n");
 #endif // DEBUG_MODE  
@@ -228,7 +243,7 @@ ssize_t my_write(struct file *filp, const char *buf, size_t count){
     }
 
     // Allocate larger buffer
-    char* new_buff = (char*)kmalloc(g_message_buffer->buff_size + count, GFP_KERNEL);
+    char* new_buff = (char*)kmalloc(message_buffer->buff_size + count, GFP_KERNEL);
     if(!new_buff){
 #ifdef DEBUG_MODE
         printk("[DEBUG_MODE] kmalloc() faild\n");
@@ -250,18 +265,19 @@ ssize_t my_write(struct file *filp, const char *buf, size_t count){
 #ifdef DEBUG_MODE
         printk("[DEBUG_MODE] failed on copy_from_user()\n");
 #endif // DEBUG                
-        kfree(g_message_buffer->buff);
+        kfree(kernel_buffer);
+        kfree(new_buff);
         return -EBADF;        
     }
 
-    message_decryption(g_message_buffer->buff, g_message_buffer->buff_size, 0);
-    my_memcpy(new_buff, g_message_buffer->buff, g_message_buffer->buff_size);
-    my_memcpy(new_buff + g_message_buffer->buff_size, kernel_buffer, count);
+    message_decryption(message_buffer->buff, message_buffer->buff_size, 0);
+    my_memcpy(new_buff, message_buffer->buff, message_buffer->buff_size);
+    my_memcpy(new_buff + message_buffer->buff_size, kernel_buffer, count);
     kfree(kernel_buffer);
-    kfree(g_message_buffer->buff);
-    g_message_buffer->buff = new_buff;
-    g_message_buffer->buff_size += count;
-    message_encryption(g_message_buffer->buff, g_message_buffer->buff_size);
+    kfree(message_buffer->buff);
+    message_buffer->buff = new_buff;
+    message_buffer->buff_size += count;
+    message_encryption(message_buffer->buff, message_buffer->buff_size);
 
 #ifdef DEBUG_MODE
         printk("[DEBUG_MODE] my_write() out\n");
@@ -294,6 +310,26 @@ int my_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned 
     return 0;
 }
 
-loff_t my_llseek(struct file *, loff_t, int){
-    
+loff_t my_llseek(struct file *flip, loff_t offset){
+    MESSAGE_BUFFER_S* message_buffer = (MESSAGE_BUFFER_S*)filp->private_data;
+    loff_t curr_pos = *(flip->f_pos);
+
+    // offset passes end of message
+    // move offset to end of message
+    if(curr_pos + offset >= message_buffer->buff_size){
+        *(flip->f_pos) = message_buffer->buff_size;
+        return *(flip->f_pos);
+    }
+
+    // offset passes start of message
+    // move offset to start of message
+    else if(curr_pos + offset < 0){
+        *(flip->f_pos) = 0;
+        return 0;
+    }
+
+    else{
+        *(flip->f_pos) += offset;
+        return *(flip->f_pos);
+    }
 }

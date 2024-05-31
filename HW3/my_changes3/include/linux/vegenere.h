@@ -41,12 +41,10 @@ void *my_memcpy(void *dest, const void *src, size_t n);
 
 typedef struct{
     char* buff;
-    size_t buff_pos; // offest from start of buffer
     size_t buff_size;
     int* key;
     size_t key_size;
-    char aplha_bet [62];
-}MESSAGE_BUFFER_S;
+} MESSAGE_BUFFER_S;
 
 
 #endif // _VEGENERE_H_
