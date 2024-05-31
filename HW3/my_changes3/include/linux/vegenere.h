@@ -32,9 +32,9 @@ char char_encryption(char elem, int key);
 
 char char_decryption(char elem, int key);
 
-void message_encryption(char* message_to_encrypt, char* kernel_buffer, size_t count);
+void message_encryption(char* message_to_encrypt, size_t count);
 
-void message_decryption(char* message_to_decrypt, char* kernel_buffer, size_t count);
+void message_decryption(char* kernel_buffer, size_t count, loff_t pos);
 
 // Custom implementation of memcpy
 void *my_memcpy(void *dest, const void *src, size_t n);

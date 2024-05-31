@@ -64,9 +64,12 @@ void message_encryption(char* message_to_encrypt, size_t count){
     return;
 }
 
-void message_decryption(char* message_to_decrypt, char* kernel_buffer, size_t count){
-    for(size_t i=0; i<count; i++){
-        kernel_buffer[i] = char_decryption(message_to_decrypt[i], g_message_buffer->key[i % key_size]);
+void message_decryption(char* kernel_buffer, size_t count, loff_t pos){
+    for(size_t i=0; i<g_message_buffer->buff_size; i++){
+        //decrypt only between [pos, pos+count]
+        if(i >= pos && i < pos + count){
+            kernel_buffer[i-pos] = char_decryption(g_message_buffer->buff[i], g_message_buffer->key[i % key_size]);
+        }
     }
     return;  
 }
@@ -101,6 +104,7 @@ int init_module(void){
     g_message_buffer->buf_pos = 0;
     g_message_buffer->buff_size = 0;
     g_message_buffer->key = NULL;
+    g_message_buffer->key = key_size = 0;
     g_message_buffer->aplha_bet = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
                                    'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
                                    'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
@@ -189,7 +193,7 @@ ssize_t my_read(struct file *filp, char *buf, size_t count, loff_t *f_pos){
         return -ENOMEM;
     }
 
-    message_decryption(g_message_buffer->buff+f_pos, kernel_buffer, count);
+    message_decryption(kernel_buffer, count, *f_pos);
     // Copy data to user space
     if(copy_to_user(buf, kernel_buffer, count) != 0){
 #ifdef DEBUG_MODE
@@ -197,7 +201,7 @@ ssize_t my_read(struct file *filp, char *buf, size_t count, loff_t *f_pos){
 #endif // DEBUG  
         return -EBADF;
     }
-    kfree(kern);
+    kfree(kernel_buffer);
 
     // Update file position
     *f_pos += count;
@@ -250,12 +254,14 @@ ssize_t my_write(struct file *filp, const char *buf, size_t count){
         return -EBADF;        
     }
 
-    message_encryption(kernel_buffer, count);
+    message_decryption(g_message_buffer->buff, g_message_buffer->buff_size, 0);
     my_memcpy(new_buff, g_message_buffer->buff, g_message_buffer->buff_size);
     my_memcpy(new_buff + g_message_buffer->buff_size, kernel_buffer, count);
     kfree(kernel_buffer);
     kfree(g_message_buffer->buff);
     g_message_buffer->buff = new_buff;
+    g_message_buffer->buff_size += count;
+    message_encryption(g_message_buffer->buff, g_message_buffer->buff_size);
 
 #ifdef DEBUG_MODE
         printk("[DEBUG_MODE] my_write() out\n");
@@ -286,4 +292,8 @@ int my_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned 
     }
 
     return 0;
+}
+
+loff_t my_llseek(struct file *, loff_t, int){
+    
 }
