@@ -71,12 +71,13 @@ def _IOW(_type, nr, size):
 def add_null(key):
     return key + "\0"
 
-def main():
+def test1():
     """Test the device driver"""
     
     #
     # Calculate the ioctl cmd number
     #
+    print("in test1")
     MY_MAGIC = 'r'
     SET_KEY = _IOW(MY_MAGIC, 0, 'int')
     RESET = _IO(MY_MAGIC, 1)
@@ -100,7 +101,62 @@ def main():
 
     # Finaly close the device file
     os.close(f)
+    print("test1 passed")
 
+def test2():
+    """Test the device driver"""
     
+    #
+    # Calculate the ioctl cmd number
+    #
+    print("in test2")
+    MY_MAGIC = 'r'
+    SET_KEY = _IOW(MY_MAGIC, 0, 'int')
+    RESET = _IO(MY_MAGIC, 1)
+    DEBUG = _IOW(MY_MAGIC, 2, 'int')
+
+    # Open the device file
+    f = os.open(DEVICE_PATH, os.O_RDWR)
+    
+    # Set a key
+    fcntl.ioctl(f, SET_KEY, add_null("gfdgfgdfgfdgdfgsdfgFYUFTFUJY"))
+
+    # Write a message
+    message = 'Hello'
+    os.write(f, message)
+
+    message2 = " World!"
+    os.write(f, message2)
+
+    # Read back the same message. Notice that we request more bytes than we must.
+    read_message = os.read(f, 11)
+    
+    # Messages should be identical
+    if read_message != "Hello World":
+        print("message ",read_message, "was read != Hello World")
+        assert False
+
+    message3 = "i cant hear you!"
+    os.write(f, message3)
+
+    read_message2 = os.read(f, 7)
+
+    if read_message2 != "!i cant":
+        print("message ",read_message2, "was read != !i cant")
+        assert False
+
+    # Move offset by 1
+    os.read(f, 1)
+
+    read_message3 = os.read(f, 9)
+    if read_message3 != "hear you!":
+        print("message ",read_message3, "was read != hear you!")
+        assert False       
+
+    # Finaly close the device file
+    os.close(f)
+    print("test2 passed")
+
 if __name__ == '__main__':
-    main()
+    test1()
+    test2()
