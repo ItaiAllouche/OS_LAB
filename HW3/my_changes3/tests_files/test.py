@@ -157,6 +157,48 @@ def test2():
     os.close(f)
     print("test2 passed")
 
+def test3():
+    """Test the device driver"""
+    
+    #
+    # Calculate the ioctl cmd number
+    #
+    print("in test3")
+    MY_MAGIC = 'r'
+    SET_KEY = _IOW(MY_MAGIC, 0, 'int')
+    RESET = _IO(MY_MAGIC, 1)
+    DEBUG = _IOW(MY_MAGIC, 2, 'int')
+
+    # Open the device file
+    f = os.open(DEVICE_PATH, os.O_RDWR)
+    
+    # Set a key
+    fcntl.ioctl(f, SET_KEY, add_null("ABC"))
+
+    # Write a message
+    message = 'Hello'
+    os.write(f, message)
+
+    # Enable deubg
+    # No encryption-decryption mechanizem
+    fcntl.ioctl(f, DEBUG, 1)
+
+    # Write a message
+    message = ' you'
+    os.write(f, message)
+
+    read_message = os.read(f, 9)
+
+    # Messages should be identical
+    if read_message != "Igomq you":
+        print("message ",read_message, "was read != Igomq you")
+        assert False
+    
+    # Finaly close the device file
+    os.close(f)
+    print("test3 passed")
+
 if __name__ == '__main__':
     test1()
     test2()
+    test3()

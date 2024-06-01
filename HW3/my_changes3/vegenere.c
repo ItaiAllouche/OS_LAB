@@ -201,6 +201,7 @@ int my_release(struct inode *inode, struct file *filp){
         }
         kfree(message_buffer);
     }
+    g_debug_mode = 0;
 #ifdef DEBUG_MODE
         printk("[DEBUG_MODE] my_release out\n");
 #endif // DEBUG_MODE
@@ -274,7 +275,7 @@ ssize_t my_read(struct file *filp, char *buf, size_t count, loff_t *f_pos){
         kfree(kernel_buffer);
     }
     else{
-        if(copy_to_user(buf, message_buffer->buff + (int)f_pos, count) != 0){
+        if(copy_to_user(buf, message_buffer->buff + (int)*f_pos, count) != 0){
 #ifdef DEBUG_MODE
             printk("[DEBUG_MODE] failed on copy_to_user()\n");
 #endif // DEBUG  
@@ -346,7 +347,9 @@ ssize_t my_write(struct file *filp, const char *buf, size_t count){
         return -EBADF;        
     }
 
-    message_decryption(message_buffer, message_buffer->buff, message_buffer->buff_size, 0);
+    if(!g_debug_mode){
+        message_decryption(message_buffer, message_buffer->buff, message_buffer->buff_size, 0);
+    }
     my_memcpy(new_buff, message_buffer->buff, message_buffer->buff_size);
     my_memcpy(new_buff + message_buffer->buff_size, kernel_buffer, count);
     kfree(kernel_buffer);
@@ -470,11 +473,15 @@ int my_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned 
         else{
             return -EINVAL;
         }
-
+#ifdef DEBUG_MODE
+            printk("[DEBUG_MODE] my_ioctl() out\n");
+#endif // DEBUG_MODE 
         return 0;
     default:
 #ifdef DEBUG_MODE
         printk("[DEBUG_MODE] case default\n");
+        printk("[DEBUG_MODE] my_ioctl() out\n");
+
 #endif // DEBUG_MODE     
 	return -ENOTTY;
     }  
