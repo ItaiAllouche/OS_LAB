@@ -39,12 +39,14 @@ void message_decryption(char* kernel_buffer, size_t count, loff_t pos);
 // Custom implementation of memcpy
 void *my_memcpy(void *dest, const void *src, size_t n);
 
+// Find position of elem in extanded apha-bet
+static int find_pos_in_alpha_bet(char elem);
+
 typedef struct{
     char* buff;
     size_t buff_size;
     int* key;
     size_t key_size;
 } MESSAGE_BUFFER_S;
-
 
 #endif // _VEGENERE_H_

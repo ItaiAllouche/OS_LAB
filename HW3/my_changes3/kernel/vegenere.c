@@ -23,7 +23,10 @@ MODULE_LICENSE("GPL");
 
 /* globals */
 int my_major = 0; /* will hold the major # of my device driver */
-const char aplha_bet [ALPHA_BET_SIZE]= {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+static int g_debug_mode = 0; // 0 for normal behavior, 1 for debug mode
+
+// An extended alpha-bet
+static const char g_aplha_bet [ALPHA_BET_SIZE]= {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
                                    'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
                                    'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
                                    'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
@@ -31,6 +34,15 @@ const char aplha_bet [ALPHA_BET_SIZE]= {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
                                    'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
                                    'w', 'x', 'y', 'z', '0', '1', '2', '3',
                                    '4', '5', '6', '7', '8', '9'};
+
+static int find_pos_in_alpha_bet(char elem){
+    for(int i=0; i<ALPHA_BET_SIZE; i++){
+        if (elem == alpha_bet[i]){
+            return i + 1;
+        }
+    }
+    return -1;
+}
 
 void *my_memcpy(char *dest, const char *src, size_t n) {
     char *d = dest;
@@ -43,8 +55,8 @@ void *my_memcpy(char *dest, const char *src, size_t n) {
 
 char char_encryption(char elem, int key){
     for(int i=0; i<ALPHA_BET_SIZE; i++){
-        if(elem == g_message_buffer->aplha_bet[i]){
-            return g_message_buffer->aplha_bet[(i+key) % ALPHA_BET_SIZE];
+        if(elem == g_message_buffer->g_aplha_bet[i]){
+            return g_message_buffer->g_aplha_bet[(i+key) % ALPHA_BET_SIZE];
         }
     }
 
@@ -54,8 +66,8 @@ char char_encryption(char elem, int key){
 
 char char_decryption(char elem, int key){
     for(int i=0; i<ALPHA_BET_SIZE; i++){
-        if(elem == g_message_buffer->aplha_bet[i]){
-            return g_message_buffer->aplha_bet[(i-key) % ALPHA_BET_SIZE];
+        if(elem == g_message_buffer->g_aplha_bet[i]){
+            return g_message_buffer->g_aplha_bet[(i-key) % ALPHA_BET_SIZE];
         }
     }
 
@@ -207,19 +219,29 @@ ssize_t my_read(struct file *filp, char *buf, size_t count, loff_t *f_pos){
         return -ENOMEM;
     }
 
-    message_decryption(kernel_buffer, count, *f_pos);
-    // Copy data to user space
-    if(copy_to_user(buf, kernel_buffer, count) != 0){
+    if(!g_debug_mode){
+        message_decryption(kernel_buffer, count, *f_pos);
+        // Copy data to user space
+        if(copy_to_user(buf, kernel_buffer, count) != 0){
 #ifdef DEBUG_MODE
-        printk("[DEBUG_MODE] failed on copy_to_user()\n");
+            printk("[DEBUG_MODE] failed on copy_to_user()\n");
 #endif // DEBUG  
-        return -EBADF;
-    }
-    kfree(kernel_buffer);
+            return -EBADF;
+        }
+        kfree(kernel_buffer);
 
-    // Update file position
-    *f_pos += count;
-    
+        // Update file position
+        *f_pos += count;
+    }
+    else{
+        if(copy_to_user(buf, message_buffer->buff + f_pos, count) != 0){
+#ifdef DEBUG_MODE
+            printk("[DEBUG_MODE] failed on copy_to_user()\n");
+#endif // DEBUG  
+            return -EBADF;
+        }
+        kfree(kernel_buffer);
+    }
     return count;
 
 }
@@ -277,7 +299,9 @@ ssize_t my_write(struct file *filp, const char *buf, size_t count){
     kfree(message_buffer->buff);
     message_buffer->buff = new_buff;
     message_buffer->buff_size += count;
-    message_encryption(message_buffer->buff, message_buffer->buff_size);
+    if(!g_debug_mode){
+        message_encryption(message_buffer->buff, message_buffer->buff_size);
+    }
 
 #ifdef DEBUG_MODE
         printk("[DEBUG_MODE] my_write() out\n");
@@ -286,28 +310,112 @@ ssize_t my_write(struct file *filp, const char *buf, size_t count){
 }
 
 int my_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned long arg){
-    switch(cmd)
-    {
+#ifdef DEBUG_MODE
+    printk("[DEBUG_MODE] my_ioctl() in\n");
+#endif // DEBUG_MODE    
+    MESSAGE_BUFFER_S* message_buffer = (MESSAGE_BUFFER_S*)filp->private_data;   
+    int* key;
+    size_t key_size;
+    char* user_key;
+    int res = 0;
+
+    switch(cmd){
     case SET_KEY:
-	//
-	// handle 
-	//
-	break;
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] case SET_KEY\n");
+#endif // DEBUG_MODE     
+        key_size = strlen_user((const char __user *)arg);
+        if(kez_size <=0 || !(const char __user *)arg){
+            return -EINVAL;
+        }
+
+        user_key  = (char*)kmalloc(kize_size + 1, GFP_KERNEL);
+        if(!user_key){
+#ifdef DEBUG_MODE
+            printk("[DEBUG_MODE] kmalloc() failed\n");
+#endif // DEBUG_MODE
+            return -ENOMEM;
+        }
+        if(copy_from_user(user_key, (char __user *)arg, key_size) != 0){
+            kfree(user_key);
+#ifdef DEBUG_MODE
+            printk("[DEBUG_MODE] copy_from_user() failed\n");
+#endif // DEBUG_MODE
+            return -EBADF;          
+        }
+        user_key[key_size] = '\0';
+
+        key = (int*)kmalloc(key_size * sizeof(int) GFP_KERNEL);
+        if(!key){
+#ifdef DEBUG_MODE
+            kfree(user_key);
+            printk("[DEBUG_MODE] kmalloc() failed\n");
+#endif // DEBUG_MODE
+            return -ENOMEM;
+        }
+
+        for(size_t i=0; i<key_size; i++){
+            int pos = find_pos_in_alpha_bet(user_key[i]);
+            if(pos == -1){
+                kfree(user_key);
+                kfree(key);
+                return -EINVAL;
+            }
+            key[i] = pos;
+        }
+        kfree(user_key);
+
+        if(message_buffer->key){
+            kfree(message_buffer->key);
+        }
+        message_buffer->key = key;
+        message_buffer->key_size = key_size;
+        res = 0;
+	    break;
     case RESET:
-	//
-	// handle 
-	//
-	break;
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] case RESET\n");
+#endif // DEBUG_MODE
+        if(message_buffer->buff){
+            kfree(message_buffer->buff);
+            message_buffer->buff = NULL;
+        }
+        message_buffer->buff_size = 0;
+        
+        if(message_buffer->key){
+            kfree(message_buffer->key);
+            message_buffer->key = NULL;
+        }
+        message_buffer->key_size = 0;
+        res = 0;
+	    break;
     case DEBUG:
-	//
-	// handle 
-	//
-	break;
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] case DEBUG\n");
+#endif // DEBUG_MODE
+        if(arg == 1){
+            g_debug_mode = 1;
+#ifdef DEBUG_MODE
+            printk("[DEBUG_MODE] debug mode enabled\n");
+#endif // DEBUG_MODE            
+        }
+        else if (arg == 0 ){
+            g_debug_mode = 0;
+#ifdef DEBUG_MODE
+            printk("[DEBUG_MODE] debug mode disabled\n");
+#endif // DEBUG_MODE               
+        }
+        else{
+            return -EINVAL;
+        }
+	    break;
     default:
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] case default\n");
+#endif // DEBUG_MODE     
 	return -ENOTTY;
     }
-
-    return 0;
+    return res;    
 }
 
 loff_t my_llseek(struct file *flip, loff_t offset){
