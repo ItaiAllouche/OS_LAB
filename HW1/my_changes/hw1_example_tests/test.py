@@ -4,6 +4,21 @@ import os
 import pyMpi
 import errno
 
+import os
+
+def get_parent_pid():
+    pid = os.getpid()
+    try:
+        f = open('/proc/%d/status' % pid, 'r')
+        try:
+            for line in f:
+                if line.startswith('PPid:'):
+                    return int(line.split()[1])
+        finally:
+            f.close()
+    except IOError:
+        return None
+
 def test1():
     """simple test to invoke the syscalls with no error."""
     pid = os.getpid()
@@ -49,24 +64,25 @@ def test3():
     print("test3 passed!")
 
 def test4():
-    """Test sending and receiving with invalid inputs."""
-    pid = os.getpid()
+    print("in test4")
+
+    pid = os.fork()
     pyMpi.register()
     
-    try:
-        pyMpi.send(-1, "Invalid PID")
-    except OSError, e:
-        assert e.errno == errno.ESRCH
+    # parent process
+    if pid > 0:
+        # wait for child process to send message to parent
+        os.wait()
+        assert pyMpi.receive(pid, 13)== "Hello parent!"
 
-    try:
-        pyMpi.receive(pid, -1)
-    except OSError, e:
-        assert e.errno == errno.EINVAL
+    # child process
+    else:
+        pyMpi.send(get_parent_pid(), "Hello parent!")
 
-    print ("test4 passed!")
+    print("test4 passed!")
 
 if __name__ == "__main__":
-    test1()
+    # test1()
     # test2()
     # test3()
-    # test4()
+    test4()

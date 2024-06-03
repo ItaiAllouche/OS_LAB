@@ -7,6 +7,10 @@ int mpi_register(void){
 #endif // DEBUG
     struct task_struct *current_process = current;
 
+    if(!current_process){
+        return -ENOMEM;
+    }
+
     // current process alreday registered
     if(current_process->registered){
 #ifdef DEBUG
@@ -14,14 +18,6 @@ int mpi_register(void){
 #endif // DEBUG        
         return SUCCESS;
     }
-
-//     current_process = kmalloc(sizeof(struct task_struct), GFP_KERNEL);
-//     if(!current_process){
-// #ifdef DEBUG
-//         printk("failed on kmalloc()\n");
-// #endif // DEBUG         
-//         return -ENOMEM;
-//     }
 
     current_process->registered = 1;
     INIT_LIST_HEAD(&current_process->msg_queue);

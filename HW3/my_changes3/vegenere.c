@@ -135,21 +135,36 @@ void message_decryption(MESSAGE_BUFFER_S* message_buffer, char* kernel_buffer, s
 }
 
 int init_module(void){
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] init_module() in\n");
+#endif // DEBUG_MODE       
     // This function is called when inserting the module using insmod
 
     my_major = register_chrdev(my_major, MY_DEVICE, &my_fops);
 
     if (my_major < 0){
         printk(KERN_WARNING "can't get dynamic major\n");
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] init_module() out\n");
+#endif // DEBUG_MODE        
         return my_major;
     }
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] init_module() out\n");
+#endif // DEBUG_MODE    
     return 0;
 }
 
 void cleanup_module(void){
     // This function is called when removing the module using rmmod
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] cleanup_module() in\n");
+#endif // DEBUG_MODE    
 
     unregister_chrdev(my_major, MY_DEVICE);
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] cleanup_module() out\n");
+#endif // DEBUG_MODE      
     return;
 }
 
@@ -219,7 +234,7 @@ ssize_t my_read(struct file *filp, char *buf, size_t count, loff_t *f_pos){
 #endif // DEBUG_MODE
         return -EFAULT;
     }
-    if(*f_pos > message_buffer->buff_size){
+    if(*f_pos >= message_buffer->buff_size || count == 0){
 #ifdef DEBUG_MODE
         printk("[DEBUG_MODE] no data to read\n");
 #endif // DEBUG_MODE
@@ -231,7 +246,7 @@ ssize_t my_read(struct file *filp, char *buf, size_t count, loff_t *f_pos){
 #endif // DEBUG_MODE  
         return -EINVAL;      
     }
-    if(count <= 0 || *f_pos < 0){
+    if(count < 0 || *f_pos < 0){
 #ifdef DEBUG_MODE
         printk("[DEBUG_MODE] invalid count or f_pos\n");
 #endif // DEBUG_MODE  
@@ -453,6 +468,10 @@ int my_ioctl(struct inode *inode, struct file *filp, unsigned int cmd, unsigned 
             message_buffer->key = NULL;
         }
         message_buffer->key_size = 0;
+        filp->f_pos = 0;
+#ifdef DEBUG_MODE
+        printk("[DEBUG_MODE] my_ioctl() out\n");
+#endif // DEBUG_MODE        
         return 0;
     case DEBUG:
 #ifdef DEBUG_MODE

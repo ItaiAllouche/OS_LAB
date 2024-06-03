@@ -198,7 +198,116 @@ def test3():
     os.close(f)
     print("test3 passed")
 
+def test4():
+    """Test the device driver"""
+    
+    #
+    # Calculate the ioctl cmd number
+    #
+    print("in test4")
+    MY_MAGIC = 'r'
+    SET_KEY = _IOW(MY_MAGIC, 0, 'int')
+    RESET = _IO(MY_MAGIC, 1)
+    DEBUG = _IOW(MY_MAGIC, 2, 'int')
+
+    # Open the device file
+    f = os.open(DEVICE_PATH, os.O_RDWR)
+    
+    # Set a key
+    fcntl.ioctl(f, SET_KEY, add_null("ABC"))
+
+    # Write a message
+    message = 'KAPARA'
+    os.write(f, message)
+
+    # RESET -  free message buffer and key
+    fcntl.ioctl(f, RESET, 1)
+
+    fcntl.ioctl(f, SET_KEY, add_null("DEF"))
+
+    # Write a message
+    message1 = 'SHELI'
+    os.write(f, message1)
+
+    read_message = os.read(f, 5)
+
+    # Messages should be identical
+    if read_message != "SHELI":
+        print("message ",read_message, "was read != SHELI")
+        assert False
+    
+    # Finaly close the device file
+    os.close(f)
+    print("test4 passed")
+
+def test5():
+    """Test the device driver"""
+    
+    #
+    # Calculate the ioctl cmd number
+    #
+    print("in test5")
+    MY_MAGIC = 'r'
+    SET_KEY = _IOW(MY_MAGIC, 0, 'int')
+    RESET = _IO(MY_MAGIC, 1)
+    DEBUG = _IOW(MY_MAGIC, 2, 'int')
+
+    # Open the device file
+    f = os.open(DEVICE_PATH, os.O_RDWR)
+    
+    # Set a key
+    fcntl.ioctl(f, SET_KEY, add_null("ABCDEFGH"))
+
+    # Write a message
+    message = 'Solution to HW3'
+    os.write(f, message)
+
+    # Enable Debug
+    fcntl.ioctl(f, DEBUG, 1)
+
+    # Write a message
+
+    read_message = os.read(f, 8)
+
+    # Messages should be identical
+    if read_message != "Tqoyyovv":
+        print("message ",read_message, "was read != Tqoyyovv")
+        assert False
+    
+    # Move offset to start of message
+    os.lseek(f, -30, 0)
+    read_message1 = os.read(f, 15)
+
+    # Messages should be identical
+    if read_message1 != "Tqoyyovv vr McA":
+        print("message ",read_message1, "was read != Tqoyyovv vr McA")
+        assert False
+
+    read_message2 = os.read(f, 17)
+    if read_message2 != "":
+        print("message ",read_message2, "was read != ")
+        assert False
+
+   # Disable deubg
+    fcntl.ioctl(f, DEBUG, 0) 
+
+    # Move offset to start of message
+    os.lseek(f, -97, 0)
+
+    read_message3 = os.read(f, 35)
+
+    # Messages should be identical
+    if read_message3 != "Solution to HW3":
+        print("message ",read_message3, "was read != Solution to HW3")
+        assert False            
+
+    # Finaly close the device file
+    os.close(f)
+    print("test5 passed")
+
 if __name__ == '__main__':
     test1()
     test2()
     test3()
+    test4()
+    test5()
