@@ -5,7 +5,7 @@
 #include <linux/slab.h>
 #include <asm/uaccess.h>
 #define TASK_INTERRUPTIBLE	1
-
+#define FOUND_P 1
 struct mpi_poll_entry {
     pid_t pid;
     char incoming;
@@ -233,23 +233,37 @@ void free_process(struct task_struct* current_process){
 
 int sys_mpi_poll(struct mpi_poll_entry * poll_pids, int npids, int timeout){
 
-
-    if( (npids<1) || (timeout<0)){
+	#ifdef DEBUG
+		printk("Poll started\n");
+	#endif // DEBUG 
+    if ( npids<1 ){
         
         return -EINVAL;
     }
-
+	if ( timeout<0 ){
+		return -EINVAL;
+	}
+	#ifdef DEBUG
+		printk("npids and timeout passed\n");
+	#endif // DEBUG 
     struct mpi_poll_entry* poll_pids_kspace = (struct mpi_poll_entry*)kmalloc(sizeof(struct mpi_poll_entry)*npids, GFP_KERNEL);
     if(poll_pids_kspace == NULL)
     {
-        
+    #ifdef DEBUG
+		printk("allocation failed\n");
+	#endif // DEBUG 
         return -ENOMEM;
     }
-
+    #ifdef DEBUG
+		printk("allocation passed\n");
+	#endif // DEBUG 
     if(copy_from_user(poll_pids_kspace,poll_pids,(sizeof(struct mpi_poll_entry))*npids)){
         if (poll_pids_kspace != NULL){
 			kfree((poll_pids_kspace));
         } 
+	#ifdef DEBUG
+		printk("failed copy\n");
+	#endif // DEBUG 
         return -EFAULT;
     }
 
@@ -258,6 +272,9 @@ int sys_mpi_poll(struct mpi_poll_entry * poll_pids, int npids, int timeout){
         if (poll_pids_kspace != NULL){
 			kfree((poll_pids_kspace));
         }
+			#ifdef DEBUG
+		printk("failed copy\n");
+	#endif // DEBUG 
         return -EPERM;
     }   
 
@@ -265,25 +282,33 @@ int sys_mpi_poll(struct mpi_poll_entry * poll_pids, int npids, int timeout){
     int found_pid = 0;
     int num_of_found_pids = 0;
     int i=0;
+	#ifdef DEBUG
+	printk("init pol ids\n");
+	#endif // DEBUG 
     for (i=0; i<npids; i++){
           poll_pids_kspace[i].incoming = 0;
     }
 
     struct list_head *temp;
 	struct list_head *pos;
+	#ifdef DEBUG
+	printk("search pids\n");
+	#endif // DEBUG 
     list_for_each_safe(pos,temp,&reciver_process->msg_queue) {
 		MPI_MESSAGE_S *node;
 		node = list_entry(pos,MPI_MESSAGE_S, head);
         for (i=0; i<npids; i++){
             
             if(node->sender_pid == poll_pids_kspace[i].pid){
-                poll_pids_kspace[i].incoming = 1;
+                poll_pids_kspace[i].incoming = FOUND_P;
                
-                found_pid = 1; 
+                found_pid = FOUND_P; 
             }
         }
     }
-
+	#ifdef DEBUG
+	printk("not found pids section\n");
+	#endif // DEBUG 
     if (found_pid==0){
         signed long remaining_time;
         remaining_time = timeout;
@@ -312,9 +337,11 @@ int sys_mpi_poll(struct mpi_poll_entry * poll_pids, int npids, int timeout){
             }
         }
     }
-
+	#ifdef DEBUG
+	printk("calculating number of found pids \n");
+	#endif // DEBUG 
     for (i=0; i<npids; i++){
-        if(poll_pids_kspace[i].incoming == 1){
+        if(poll_pids_kspace[i].incoming == FOUND_P){
             num_of_found_pids++;
         }
     }
@@ -323,14 +350,21 @@ int sys_mpi_poll(struct mpi_poll_entry * poll_pids, int npids, int timeout){
         if (poll_pids_kspace != NULL){
 			    kfree((poll_pids_kspace));
 			}
+			#ifdef DEBUG
+			printk("failed copy \n");
+			#endif // DEBUG 
             return -EFAULT;
     }
-
+	#ifdef DEBUG
+	printk("freeing poll kspace \n");
+	#endif // DEBUG 
     if (poll_pids_kspace != NULL)
 	{
 		kfree((poll_pids_kspace));
 	}
-
+	#ifdef DEBUG
+	printk("Finishing poll \n");
+	#endif // DEBUG 
     return num_of_found_pids;
 
 }
