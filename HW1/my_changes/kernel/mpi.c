@@ -49,27 +49,29 @@ int mpi_send(pid_t pid, char *message, ssize_t message_size){
     struct task_struct *recev_process;
     MPI_MESSAGE_S *mpi_message = NULL;
 
-    // Check if sending process is valid and registered
-    if(!sender_process || !sender_process->registered){
-#ifdef DEBUG
-        printk("sending process isn't valild or not registered. sender_process.registerd = %d \n", sender_process->registered);
-#endif // DEBUG        
-        return -EPERM;
-    }
-#ifdef DEBUG
-    printk("sendig process is valid\n");
-#endif // DEBUG       
-
     // Check if receiver process is exist
     recev_process = find_task_by_pid(pid);
+
+    // Check if sending process is valid and registered
     if(!recev_process){
 #ifdef DEBUG
-        printk("receiver process isn't exist. invalid pid = %d\n", pid);
+        printk("receving's pid process isn't vaild. pid = %d \n", recev_process);
 #endif // DEBUG        
         return -ESRCH;
     }
 #ifdef DEBUG
-    printk("receiver process exists pid =%d\n", pid);
+    printk("receving's pid is valid\n");
+#endif // DEBUG       
+
+    // Check if sending process and receivng process both registered.
+    if(!sender_process->registered || !recev_process->registered){
+#ifdef DEBUG
+        printk("sender process or receiver process is not registered");
+#endif // DEBUG        
+        return -EPERM;
+    }
+#ifdef DEBUG
+    printk("both sender process and receiver process are registered");
 #endif // DEBUG   
 
     // mpi_message allocation
