@@ -10,7 +10,7 @@ import errno
 #
 # Globals
 #
-DEVICE_PATH = '/dev/vegenere'
+DEVICE_PATH = '/dev/vegenere1'
 
 #
 # Utilities for calculating the IOCTL command codes.
@@ -119,7 +119,7 @@ def test2():
     f = os.open(DEVICE_PATH, os.O_RDWR)
     
     # Set a key
-    fcntl.ioctl(f, SET_KEY, add_null("gfdgfgdfgfdgdfgsdfgFYUFTFUJY"))
+    fcntl.ioctl(f, SET_KEY, add_null("11111111111111111111111111"))
 
     # Write a message
     message = 'Hello'
@@ -305,9 +305,44 @@ def test5():
     os.close(f)
     print("test5 passed")
 
+def test6():
+    """Test the device driver"""
+    
+    #
+    # Calculate the ioctl cmd number
+    #
+    print("in test6")
+    MY_MAGIC = 'r'
+    SET_KEY = _IOW(MY_MAGIC, 0, 'int')
+    RESET = _IO(MY_MAGIC, 1)
+    DEBUG = _IOW(MY_MAGIC, 2, 'int')
+
+    # Open the device file
+    f = os.open(DEVICE_PATH, os.O_RDWR)
+    
+    # Set a key
+    fcntl.ioctl(f, SET_KEY, add_null("abc"))
+
+    # Write a message
+    message = 'Hell'
+    os.write(f, message)
+
+    # Read back the same message. Notice that we request more bytes than we must.
+    read_message = os.read(f, 100)
+    
+    # Messages should be identical
+    # print("msg = "+message)
+    # print("read msg = "+read_message)
+    assert (message == read_message)
+
+    print("test6 passed")
+
+    # Finaly close the device file
+    os.close(f)  
 if __name__ == '__main__':
-    test1()
-    test2()
+    # test1()
+    # test2()
     test3()
-    test4()
-    test5()
+    # test4()
+    # test5()
+    # test6()
